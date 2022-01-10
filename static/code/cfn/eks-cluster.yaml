@@ -3,7 +3,7 @@ apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: eks-cluster
+  name: --CLUSTER-NAME--
   region: --AWS_REGION--
   version: --EKS_VERSION--
 
@@ -11,19 +11,19 @@ availabilityZones: [--AZA--, --AZB--]
 
 managedNodeGroups:
 - amiFamily: AmazonLinux2
-  instanceType: m5.large
-  name: mng-od-m5large
-  desiredCapacity: 1
+  instanceType: --NG-A-EC2--
+  name: --NG-A-NAME--
+  desiredCapacity: 2
   maxSize: 3
   minSize: 0
   labels:
-    alpha.eksctl.io/cluster-name: eks-cluster
-    alpha.eksctl.io/nodegroup-name: mng-od-m5large
-    intent: control-apps
+    alpha.eksctl.io/cluster-name: --CLUSTER-NAME--
+    alpha.eksctl.io/nodegroup-name: --NG-A-NAME--
+    --NG-A-KEY--: --NG-A-VAL--
   tags:
-    alpha.eksctl.io/nodegroup-name: mng-od-m5large
+    alpha.eksctl.io/nodegroup-name: --NG-A-NAME--
     alpha.eksctl.io/nodegroup-type: managed
-    k8s.io/cluster-autoscaler/node-template/label/intent: control-apps
+    k8s.io/cluster-autoscaler/node-template/label/intent: --NG-A-LABEL--
   iam:
     withAddonPolicies:
       autoScaler: true

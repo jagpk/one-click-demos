@@ -35,11 +35,25 @@ Parameters:
   EKSClusterName:
     Description: EKS Cluster Name
     Type: String
-    Default: eks-cluster
-    ConstraintDescription: Must be a valid eks version
+    Default: eks-demo
+  EKSNGAName:
+    Description: EKS Node Group A Name
+    Type: String
+    Default: mng-od-m5large
+  EKSNGAInstanceType:
+    Description: EKS Node Group A EC2 Instance Type
+    Type: String
+    Default: m5.large
+  EKSNGALabelKey:
+    Description: EKS Node Group A Label Key
+    Type: String
+    Default: intent
+  EKSNGALabelValue:
+    Description: EKS Node Group A Label Value
+    Type: String
+    Default: control-apps
 
 Resources:
-
 ################## PERMISSIONS AND ROLES #################
   C9Role:
     Type: AWS::IAM::Role
@@ -98,6 +112,8 @@ Resources:
             - ec2:AssociateIamInstanceProfile
             - ec2:ModifyInstanceAttribute
             - ec2:ReplaceIamInstanceProfileAssociation
+            - ec2:DescribeIamInstanceProfileAssociations
+            - ec2:DisassociateIamInstanceProfile
             - iam:ListInstanceProfiles
             - iam:PassRole
             Resource: "*"
@@ -184,6 +200,20 @@ Resources:
                           instance_state = ec2.describe_instances(InstanceIds=[instance['InstanceId']])
                         # logger.info('instance_state: {}'.format(instance_state))
 
+                      # Check existing instance profile associations
+                      association_id = ec2.describe_iam_instance_profile_associations(
+                          Filters=[
+                              {
+                                  'Name': 'instance-id',
+                                  'Values': [instance['InstanceId'],]
+                              },
+                          ],
+                      )['IamInstanceProfileAssociations'][0]['AssociationId']
+                      print(association_id)
+
+                      # Disassociate existing instance profile associations
+                      response = ec2.disassociate_iam_instance_profile(AssociationId=association_id)
+  
                       # attach instance profile
                       response = ec2.associate_iam_instance_profile(IamInstanceProfile=iam_instance_profile, InstanceId=instance['InstanceId'])
                       # logger.info('response - associate_iam_instance_profile: {}'.format(response))
@@ -215,7 +245,7 @@ Resources:
         mainSteps:
         - action: aws:runShellScript
           name: C9bootstrap
-            inputs:
+          inputs:
             runCommand:
             - "#!/bin/bash"
             - date
@@ -245,22 +275,28 @@ Resources:
             - sudo -H -u ec2-user aws configure set default.region ${AWS_REGION}
             - sudo -H -u ec2-user aws configure get default.region
             - sudo -H -u ec2-user aws sts get-caller-identity
-            - echo '=== Generate SSH key and import to aws ==='
-            - sudo -H -u ec2-user ssh-keygen -f /home/ec2-user/.ssh/id_rsa1 -P ''
-            - sudo -H -u ec2-user aws ec2 import-key-pair --key-name "eks-cluster" --public-key-material file:///home/ec2-user/.ssh/id_rsa1.pub
+#            - echo '=== Generate SSH key and import to aws ==='
+#            - sudo -H -u ec2-user ssh-keygen -f /home/ec2-user/.ssh/id_rsa1 -P ''
+#            - sudo -H -u ec2-user aws ec2 import-key-pair --key-name "eks-demo" --public-key-material file:///home/ec2-user/.ssh/id_rsa1.pub
             - echo '=== Install EKSCTL ==='
             - !Sub 'export EKSCTL_VERSION=${C9EKSctlVersion}'
             - sudo -H -u ec2-user curl --silent --location "https://github.com/weaveworks/eksctl/releases/download/${EKSCTL_VERSION}/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
             - sudo mv -v /tmp/eksctl /usr/local/bin
             - sudo -H -u ec2-user /usr/local/bin/eksctl version
             - echo '=== Create EKS Cluster ==='
-            - sudo -H -u ec2-user curl --silent --location -o /home/ec2-user/environment/eks-cluster.yaml "https://raw.githubusercontent.com/jagpk/one-click-demos/main/static/code/cfn/eks-cluster.yaml"
-            - !Sub sed -i.bak -e 's/--AWS_REGION--/${AWS::Region}/' /home/ec2-user/environment/eks-cluster.yaml
-            - !Sub sed -i.bak -e 's/--AZA--/${AWS::Region}a/' /home/ec2-user/environment/eks-cluster.yaml
-            - !Sub sed -i.bak -e 's/--AZB--/${AWS::Region}b/' /home/ec2-user/environment/eks-cluster.yaml
-            - !Sub sed -i.bak -e 's/--EKS_VERSION--/"'"${EKSClusterVersion}"'"/' /home/ec2-user/environment/eks-cluster.yaml
-            - sudo -H -u ec2-user /usr/local/bin/eksctl create cluster -f /home/ec2-user/environment/eks-cluster.yaml
+            - sudo -H -u ec2-user curl --silent --location -o /home/ec2-user/environment/eks-demo.yaml "https://raw.githubusercontent.com/jagpk/one-click-demos/main/static/code/cfn/eks-cluster.yaml"
+            - !Sub sed -i.bak -e 's/--AWS_REGION--/${AWS::Region}/' /home/ec2-user/environment/eks-demo.yaml
+            - !Sub sed -i.bak -e 's/--AZA--/${AWS::Region}a/' /home/ec2-user/environment/eks-demo.yaml
+            - !Sub sed -i.bak -e 's/--AZB--/${AWS::Region}b/' /home/ec2-user/environment/eks-demo.yaml
+            - !Sub sed -i.bak -e 's/--CLUSTER-NAME--/${EKSClusterName}/g' /home/ec2-user/environment/eks-demo.yaml
+            - !Sub sed -i.bak -e 's/--NG-A-EC2--/${EKSNGAInstanceType}/g' /home/ec2-user/environment/eks-demo.yaml
+            - !Sub sed -i.bak -e 's/--NG-A-NAME--/${EKSNGAName}/g' /home/ec2-user/environment/eks-demo.yaml
+            - !Sub sed -i.bak -e 's/--NG-A-KEY--/${EKSNGALabelKey}/g' /home/ec2-user/environment/eks-demo.yaml 
+            - !Sub sed -i.bak -e 's/--NG-A-VAL--/${EKSNGALabelValue}g/' /home/ec2-user/environment/eks-demo.yaml        
+            - !Sub sed -i.bak -e 's/--EKS_VERSION--/"'"${EKSClusterVersion}"'"/' /home/ec2-user/environment/eks-demo.yaml
+            - sudo -H -u ec2-user /usr/local/bin/eksctl create cluster -f /home/ec2-user/environment/eks-demo.yaml
             - sudo -H -u ec2-user /usr/local/bin/kubectl get nodes
+
 
   C9BootstrapAssociation:
     Type: AWS::SSM::Association
