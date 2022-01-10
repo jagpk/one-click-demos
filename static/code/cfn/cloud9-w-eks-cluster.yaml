@@ -4,18 +4,6 @@ Description: AWS CloudFormation template to create a Cloud9 environment and an E
 Metadata:
   Author:
     Description: Jagdeep Phoolkumar <jphoolku@amazon.com>
-  License:
-    Description: 'Copyright 2020 Amazon.com, Inc. and its affiliates. All Rights Reserved.
-
-      Licensed under the Amazon Software License (the "License"). You may not use this file
-      except in compliance with the License. A copy of the License is located at
-
-      http://aws.amazon.com/asl/
-
-      or in the "license" file accompanying this file. This file is distributed on an "AS IS"
-      BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-      License for the specific language governing permissions and limitations under the License.'
-
 Parameters:
   C9InstanceType:
     Description: Example Cloud9 instance type
@@ -259,19 +247,19 @@ Resources:
             - sudo -H -u ec2-user aws sts get-caller-identity
             - echo '=== Generate SSH key and import to aws ==='
             - sudo -H -u ec2-user ssh-keygen -f /home/ec2-user/.ssh/id_rsa1 -P ''
-            - sudo -H -u ec2-user aws ec2 import-key-pair --key-name "eksworkshop" --public-key-material file:///home/ec2-user/.ssh/id_rsa1.pub
+            - sudo -H -u ec2-user aws ec2 import-key-pair --key-name "eks-cluster" --public-key-material file:///home/ec2-user/.ssh/id_rsa1.pub
             - echo '=== Install EKSCTL ==='
             - !Sub 'export EKSCTL_VERSION=${C9EKSctlVersion}'
             - sudo -H -u ec2-user curl --silent --location "https://github.com/weaveworks/eksctl/releases/download/${EKSCTL_VERSION}/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
             - sudo mv -v /tmp/eksctl /usr/local/bin
             - sudo -H -u ec2-user /usr/local/bin/eksctl version
             - echo '=== Create EKS Cluster ==='
-            - sudo -H -u ec2-user curl --silent --location -o /home/ec2-user/environment/eksworkshop.yaml "https://raw.githubusercontent.com/jagpk/one-click-demos/main/master/static/code/cfn/eks-cluster.yaml"
-            - !Sub sed -i.bak -e 's/--AWS_REGION--/${AWS::Region}/' /home/ec2-user/environment/eksworkshop.yaml
-            - !Sub sed -i.bak -e 's/--AZA--/${AWS::Region}a/' /home/ec2-user/environment/eksworkshop.yaml
-            - !Sub sed -i.bak -e 's/--AZB--/${AWS::Region}b/' /home/ec2-user/environment/eksworkshop.yaml
-            - !Sub sed -i.bak -e 's/--EKS_VERSION--/"'"${EKSClusterVersion}"'"/' /home/ec2-user/environment/eksworkshop.yaml
-            - sudo -H -u ec2-user /usr/local/bin/eksctl create cluster -f /home/ec2-user/environment/eksworkshop.yaml
+            - sudo -H -u ec2-user curl --silent --location -o /home/ec2-user/environment/eks-cluster.yaml "https://raw.githubusercontent.com/jagpk/one-click-demos/main/static/code/cfn/eks-cluster.yaml"
+            - !Sub sed -i.bak -e 's/--AWS_REGION--/${AWS::Region}/' /home/ec2-user/environment/eks-cluster.yaml
+            - !Sub sed -i.bak -e 's/--AZA--/${AWS::Region}a/' /home/ec2-user/environment/eks-cluster.yaml
+            - !Sub sed -i.bak -e 's/--AZB--/${AWS::Region}b/' /home/ec2-user/environment/eks-cluster.yaml
+            - !Sub sed -i.bak -e 's/--EKS_VERSION--/"'"${EKSClusterVersion}"'"/' /home/ec2-user/environment/eks-cluster.yaml
+            - sudo -H -u ec2-user /usr/local/bin/eksctl create cluster -f /home/ec2-user/environment/eks-cluster.yaml
             - sudo -H -u ec2-user /usr/local/bin/kubectl get nodes
 
   C9BootstrapAssociation:
@@ -292,7 +280,6 @@ Resources:
 ################## INSTANCE #####################
   C9InstanceProfile:
     Type: AWS::IAM::InstanceProfile
-    Condition: NotEventEngine
     Properties:
       Path: "/"
       Roles:
@@ -308,8 +295,6 @@ Resources:
         Ref: C9InstanceType
       Name: 
         Ref: AWS::StackName
-      # OwnerArn: !Sub 'arn:aws:sts::${AWS::AccountId}:assumed-role/TeamRole/MasterKey'
-      OwnerArn: !If [NotEventEngine , !Ref AWS::NoValue , !Sub 'arn:aws:sts::${AWS::AccountId}:assumed-role/TeamRole/MasterKey']
       Tags:
         -
           Key: SSMBootstrap
