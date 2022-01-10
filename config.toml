@@ -2,3 +2,27 @@
 languageCode = 'en-us'
 title = 'One Click Demos'
 theme = "hugo-theme-learn"
+
+[params]
+editURL = "https://github.com/jagpk/one-click-demos/edit/main/content/"
+themeVariant = "mine"
+showVisitedLinks = false
+author = "Jagdeep Phoolkumar"
+description = "One Click Demos"
+disableSearch = false
+disableAssetsBusting = false
+disableLanguageSwitchingButton = true
+disableShortcutsTitle=false
+disableInlineCopyToClipBoard = true
+ghrepo = "https://github.com/jagpk/one-click-demos/"
+branch = "main"
+
+
+[[menu.shortcuts]]
+name = "<i class='fab fa-github'></i> GitHub Project"
+url = "https://github.com/jagpk/one-click-demos"
+weight = 10
+
+[outputs]
+home = [ "HTML", "JSON"]
+page = [ "HTML" ]
