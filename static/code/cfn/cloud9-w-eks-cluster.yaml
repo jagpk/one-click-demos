@@ -39,7 +39,7 @@ Parameters:
   EKSNGAName:
     Description: EKS Node Group A Name
     Type: String
-    Default: mng-od-m5large
+    Default: mng-cntrl-x86
   EKSNGAInstanceType:
     Description: EKS Node Group A EC2 Instance Type
     Type: String
@@ -52,6 +52,42 @@ Parameters:
     Description: EKS Node Group A Label Value
     Type: String
     Default: control-apps
+
+  EKSNGBName:
+    Description: EKS Node Group B Name
+    Type: String
+    Default: mng-agnts-x86
+  EKSNGBInstanceType:
+    Description: EKS Node Group B EC2 Instance Type
+    Type: String
+    Default: m5.large
+  EKSNGBLabelKey:
+    Description: EKS Node Group B Label Key
+    Type: String
+    Default: intent
+  EKSNGBLabelValue:
+    Description: EKS Node Group B Label Value
+    Type: String
+    Default: jenkins-agents
+
+
+  EKSNGCName:
+    Description: EKS Node Group C Name
+    Type: String
+    Default: mng-agnts-arm
+  EKSNGCInstanceType:
+    Description: EKS Node Group C EC2 Instance Type
+    Type: String
+    Default: m6g.large
+  EKSNGCLabelKey:
+    Description: EKS Node Group C Label Key
+    Type: String
+    Default: intent
+  EKSNGCLabelValue:
+    Description: EKS Node Group C Label Value
+    Type: String
+    Default: jenkins-agents
+
 
 Resources:
 ################## PERMISSIONS AND ROLES #################
@@ -219,6 +255,12 @@ Resources:
                       # logger.info('response - associate_iam_instance_profile: {}'.format(response))
                       r_ec2 = boto3.resource('ec2')
 
+                      # update environment to disable AWS managed credentials
+                      response = ec2.update_environment(
+                          environmentId=[event['ResourceProperties']['EnvironmentId']],
+                          managedCredentialsAction='DISABLE'
+                      )
+
                       responseData = {'Success': 'Started bootstrapping for instance: '+instance['InstanceId']}
                       cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, 'CustomResourcePhysicalID')
 
@@ -289,15 +331,22 @@ Resources:
             - !Sub sed -i.bak -e 's/--AZA--/${AWS::Region}a/' /home/ec2-user/environment/eks-demo.yaml
             - !Sub sed -i.bak -e 's/--AZB--/${AWS::Region}b/' /home/ec2-user/environment/eks-demo.yaml
             - !Sub sed -i.bak -e 's/--CLUSTER-NAME--/${EKSClusterName}/g' /home/ec2-user/environment/eks-demo.yaml
+            - !Sub sed -i.bak -e 's/--EKS_VERSION--/"'"${EKSClusterVersion}"'"/' /home/ec2-user/environment/eks-demo.yaml
             - !Sub sed -i.bak -e 's/--NG-A-EC2--/${EKSNGAInstanceType}/g' /home/ec2-user/environment/eks-demo.yaml
             - !Sub sed -i.bak -e 's/--NG-A-NAME--/${EKSNGAName}/g' /home/ec2-user/environment/eks-demo.yaml
             - !Sub sed -i.bak -e 's/--NG-A-KEY--/${EKSNGALabelKey}/g' /home/ec2-user/environment/eks-demo.yaml 
             - !Sub sed -i.bak -e 's/--NG-A-VAL--/${EKSNGALabelValue}g/' /home/ec2-user/environment/eks-demo.yaml        
-            - !Sub sed -i.bak -e 's/--EKS_VERSION--/"'"${EKSClusterVersion}"'"/' /home/ec2-user/environment/eks-demo.yaml
+            - !Sub sed -i.bak -e 's/--NG-B-EC2--/${EKSNGBInstanceType}/g' /home/ec2-user/environment/eks-demo.yaml
+            - !Sub sed -i.bak -e 's/--NG-B-NAME--/${EKSNGBName}/g' /home/ec2-user/environment/eks-demo.yaml
+            - !Sub sed -i.bak -e 's/--NG-B-KEY--/${EKSNGBLabelKey}/g' /home/ec2-user/environment/eks-demo.yaml 
+            - !Sub sed -i.bak -e 's/--NG-B-VAL--/${EKSNGBLabelValue}g/' /home/ec2-user/environment/eks-demo.yaml        
+            - !Sub sed -i.bak -e 's/--NG-C-EC2--/${EKSNGCInstanceType}/g' /home/ec2-user/environment/eks-demo.yaml
+            - !Sub sed -i.bak -e 's/--NG-C-NAME--/${EKSNGCName}/g' /home/ec2-user/environment/eks-demo.yaml
+            - !Sub sed -i.bak -e 's/--NG-C-KEY--/${EKSNGCLabelKey}/g' /home/ec2-user/environment/eks-demo.yaml 
+            - !Sub sed -i.bak -e 's/--NG-C-VAL--/${EKSNGCLabelValue}g/' /home/ec2-user/environment/eks-demo.yaml        
             - sudo -H -u ec2-user /usr/local/bin/eksctl create cluster -f /home/ec2-user/environment/eks-demo.yaml
             - sudo -H -u ec2-user /usr/local/bin/kubectl get nodes
-
-
+ 
   C9BootstrapAssociation:
     Type: AWS::SSM::Association
     DependsOn:

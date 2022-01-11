@@ -10,10 +10,9 @@ metadata:
 availabilityZones: [--AZA--, --AZB--]
 
 managedNodeGroups:
-- amiFamily: AmazonLinux2
+- name: --NG-A-NAME--
   instanceType: --NG-A-EC2--
-  name: --NG-A-NAME--
-  desiredCapacity: 2
+  desiredCapacity: 1
   maxSize: 3
   minSize: 0
   labels:
@@ -23,7 +22,47 @@ managedNodeGroups:
   tags:
     alpha.eksctl.io/nodegroup-name: --NG-A-NAME--
     alpha.eksctl.io/nodegroup-type: managed
-    k8s.io/cluster-autoscaler/node-template/label/intent: --NG-A-LABEL--
+    k8s.io/cluster-autoscaler/node-template/label/--NG-A-KEY--: --NG-A-VAL--
+  iam:
+    withAddonPolicies:
+      autoScaler: true
+      cloudWatch: true
+      albIngress: true
+  privateNetworking: true
+
+- name: --NG-B-NAME--
+  instanceType: --NG-B-EC2--
+  desiredCapacity: 1
+  maxSize: 3
+  minSize: 0
+  labels:
+    alpha.eksctl.io/cluster-name: --CLUSTER-NAME--
+    alpha.eksctl.io/nodegroup-name: --NG-B-NAME--
+    --NG-B-KEY--: --NG-B-VAL--
+  tags:
+    alpha.eksctl.io/nodegroup-name: --NG-B-NAME--
+    alpha.eksctl.io/nodegroup-type: managed
+    k8s.io/cluster-autoscaler/node-template/label/--NG-B-KEY--: --NG-B-VAL--
+  iam:
+    withAddonPolicies:
+      autoScaler: true
+      cloudWatch: true
+      albIngress: true
+  privateNetworking: true
+
+- name: --NG-C-NAME--
+  instanceType: --NG-C-EC2--
+  desiredCapacity: 1
+  maxSize: 3
+  minSize: 0
+  labels:
+    alpha.eksctl.io/cluster-name: --CLUSTER-NAME--
+    alpha.eksctl.io/nodegroup-name: --NG-C-NAME--
+    --NG-C-KEY--: --NG-C-VAL--
+  tags:
+    alpha.eksctl.io/nodegroup-name: --NG-C-NAME--
+    alpha.eksctl.io/nodegroup-type: managed
+    k8s.io/cluster-autoscaler/node-template/label/--NG-C-KEY--: --NG-C-VAL--
   iam:
     withAddonPolicies:
       autoScaler: true
