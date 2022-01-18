@@ -1,0 +1,50 @@
+---
+controller:
+  componentName: "jenkins-controller"
+  image: "jenkins/jenkins"
+  tag: "--CLUSTER-NAME--"
+  #tag: "2.303.2-lts-jdk11"
+  resources:
+    requests:
+      cpu: "1024m"
+      memory: "4Gi"
+    limits:
+      cpu: "4096m"
+      memory: "8Gi"
+
+  servicePort: 80
+  serviceType: LoadBalancer
+
+  nodeSelector:
+    --NG-A-KEY--: --NG-A-VAL--
+
+serviceAccountAgent:
+  create: false
+
+agent:
+  enabled: true
+  image: "jenkins/inbound-agent"
+  tag: "4.11-1"
+  workingDir: "/home/jenkins/agent"
+  componentName: "jenkins-agent"
+  resources:
+    requests:
+      cpu: "512m"
+      memory: "512Mi"
+    limits:
+      cpu: "1024m"
+      memory: "1Gi"
+
+  nodeSelector:
+    --NG-B-KEY--: --NG-B-VAL--
+  connectTimeout: 300
+  # Pod name
+  podName: "jenkins-agent-x86"
+
+# Here you can add additional agents
+# They inherit all values from `agent` so you only need to specify values which differ
+additionalAgents: {}
+  nodeSelector:
+    --NG-C-KEY--: --NG-C-VAL--
+  # Pod name
+  podName: "jenkins-agent-arm"

@@ -1,0 +1,13 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "123456",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "--c9InstanceRoleArn--"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
