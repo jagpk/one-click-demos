@@ -30,7 +30,7 @@ Parameters:
   C9ConsoleSession:
     Description: Name of Console user/role session
     Type: String
-    Default: jphoolku-isengard
+    Default: jphoolku-Isengard
 
   EKSClusterVersion:
     Description: EKS Cluster Version
@@ -93,6 +93,16 @@ Parameters:
     Type: String
     Default: jenkins-agents
 
+  C9JenkinsControllerTag:
+    Description: Cloud9 instance Jenkins Controller Tag
+    Type: String
+    Default: 2.303.2-lts-jdk11
+    ConstraintDescription: Must be a valid Jenkins Controller Tag
+  C9JenkinsAgentsTag:
+    Description: Cloud9 instance Jenkins Agents Tag
+    Type: String
+    Default: 4.11-1
+    ConstraintDescription: Must be a valid Jenkins Agents Tag
 
 Resources:
 ################## PERMISSIONS AND ROLES #################
@@ -295,6 +305,8 @@ Resources:
             - !Sub 'export KUBECTL_VERSION=${C9KubectlVersion}'
             - !Sub 'export EKSCTL_VERSION=${C9EKSctlVersion}'
             - !Sub 'export Session_Name=${C9ConsoleSession}'
+            - !Sub 'export Jenkins_Cntlr_Tag=${C9JenkinsControllerTag}'
+            - !Sub 'export Jenkins_Agnts_Tag=${C9JenkinsAgentsTag}'
 
             - echo '=== INSTALL kubectl ==='          
             - curl --silent --location -o /usr/local/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl
@@ -304,93 +316,97 @@ Resources:
             - sudo yum -y install jq gettext
 
             - echo '=== Update to the latest AWS CLI ==='
-            - sudo -H -u ec2-user /usr/local/bin/aws --version
+            - /usr/local/bin/aws --version
             - curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
             - unzip awscliv2.zip
             - sudo ./aws/install
-            - sudo -H -u ec2-user /usr/local/bin/aws --version
+            - /usr/local/bin/aws --version
 
             - echo '=== setup AWS configs ==='
             - rm -vf /home/ec2-user/.aws/credentials
-            - export ACCOUNT_ID=$(aws sts get-caller-identity --output text --query Account)
+            - rm -vf ~/.aws/credentials
+            - export ACCOUNT_ID=$(/usr/local/bin/aws sts get-caller-identity --output text --query Account)
             - export AWS_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
+            - echo "export ACCOUNT_ID=${ACCOUNT_ID}" >> ~/.bash_profile
+            - echo "export AWS_REGION=${AWS_REGION}" >> ~/.bash_profile
             - echo "export ACCOUNT_ID=${ACCOUNT_ID}" >> /home/ec2-user/.bash_profile
             - echo "export AWS_REGION=${AWS_REGION}" >> /home/ec2-user/.bash_profile
-            - sudo -H -u ec2-user /usr/local/bin/aws configure set default.region ${AWS_REGION}
-            - sudo -H -u ec2-user /usr/local/bin/aws configure get default.region
-            - sudo -H -u ec2-user /usr/local/bin/aws sts get-caller-identity
+            - /usr/local/bin/aws configure set default.region ${AWS_REGION}
+            - /usr/local/bin/aws configure get default.region
+            - /usr/local/bin/aws sts get-caller-identity
 
             - echo '=== Get Cloud9 Environment Credentials ==='
-            - export c9InstanceId=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.c9InstanceId')
-            - export c9EnvID=$(sudo -H -u ec2-user /usr/local/bin/aws ec2 describe-tags --filters "Name=resource-id,Values=${c9InstanceId}" --output text --query 'Tags[?Key==`aws:cloud9:environment`].Value')
-            - export c9builderArn=$(sudo -H -u ec2-user /usr/local/bin/aws cloud9 describe-environment-memberships --environment-id=${c9EnvID} | jq -r '.memberships[].userArn')
+            - export c9InstanceId=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.instanceId')
+            - export c9EnvID=$(/usr/local/bin/aws ec2 describe-tags --filters "Name=resource-id,Values=${c9InstanceId}" --output text --query 'Tags[?Key==`aws:cloud9:environment`].Value')
+            - export c9builderArn=$(/usr/local/bin/aws cloud9 describe-environment-memberships --environment-id=${c9EnvID} | jq -r '.memberships[].userArn')
 
             - 'if echo ${c9builderArn} | grep -q user; then'
             - '     export builderArn=${c9builderArn}'
             - '     echo "Role ARN: ${builderArn}"'
             - 'elif echo ${c9builderArn} | grep -q assumed-role; then'
             - '      export assumedrolename=$(echo ${c9builderArn} | awk -F/ ''{print $(NF-1)}'')'
-            - '      export builderArn=$(sudo -H -u ec2-user /usr/local/bin/aws iam get-role --role-name ${assumedrolename} --query Role.Arn --output text)'
+            - '      export builderArn=$(/usr/local/bin/aws iam get-role --role-name ${assumedrolename} --query Role.Arn --output text)'
             - '      echo "Role ARN: ${builderArn}"'
             - fi
 
-            - echo '=== Update Cloud9 Instance Role Policy to assume "${assumedrolename}" ==='
-
-            # Put policy in Console User/Role  
+            - echo '=== Update Cloud9 Instance Role Policy to assume' ${assumedrolename} '==='
             - export builderName=$(echo ${builderArn} | awk -F/ '{print $(NF)}')
-            - sudo -u ec2-user /usr/local/bin/aws iam get-role --role-name ${builderName} | jq .Role.AssumeRolePolicyDocument > /home/ec2-user/environment/builder-trust-policy.json
+            - /usr/local/bin/aws iam get-role --role-name ${builderName} | jq .Role.AssumeRolePolicyDocument | sudo -u ec2-user tee /home/ec2-user/environment/builder-trust-policy.json > /dev/null
  
-            - export c9InstanceProfileArn=$(aws ec2 describe-instances --instance-id ${c9InstanceId} --query 'Reservations[*].Instances[*].IamInstanceProfile[].Arn' --output text)
+            - export c9InstanceProfileArn=$(/usr/local/bin/aws ec2 describe-instances --instance-id ${c9InstanceId} --query 'Reservations[*].Instances[*].IamInstanceProfile[].Arn' --output text)
             - export c9InstanceProfileName=$(echo ${c9InstanceProfileArn} | awk -F/ '{print $(NF)}')
-            - export c9InstanceRoleArn=$(aws iam get-instance-profile --instance-profile-name ${c9InstanceProfileName} --query 'InstanceProfile.Roles[].Arn' --output text)
-            - sudo -H -u ec2-user curl --silent --location -o /home/ec2-user/environment/c9builder-trust-policy.json "https://raw.githubusercontent.com/jagpk/one-click-demos/main/static/code/cfn/c9builder-trust-policy.json"
-            - !Sub sed -i.bak -e 's/--c9InstanceRoleArn--/${c9InstanceRoleArn}/' /home/ec2-user/environment/c9builder-trust-policy.json
+            - export c9InstanceRoleArn=$(/usr/local/bin/aws iam get-instance-profile --instance-profile-name ${c9InstanceProfileName} --query 'InstanceProfile.Roles[].Arn' --output text)
+            - sudo -u ec2-user curl --silent --location -o /home/ec2-user/environment/c9builder-trust-policy.json "https://raw.githubusercontent.com/jagpk/one-click-demos/main/static/code/cfn/c9builder-trust-policy.json"
+            - sudo -u ec2-user sed -i.bak "s|--c9InstanceRoleArn--|${c9InstanceRoleArn}|g" /home/ec2-user/environment/c9builder-trust-policy.json
+            - 'jq -s ''def deepmerge(a;b):'
+            - '   reduce b[] as $item (a;'
+            - '     reduce ($item | keys_unsorted[]) as $key (.;'
+            - '       $item[$key] as $val | ($val | type) as $type | .[$key] = if ($type == "object") then'
+            - '         deepmerge({}; [if .[$key] == null then {} else .[$key] end, $val])'
+            - '      elif ($type == "array") then'
+            - '         (.[$key] + $val | unique)'
+            - '       else'
+            - '         $val'
+            - '       end)'
+            - '     );'
+            - '   deepmerge({}; .)'' /home/ec2-user/environment/builder-trust-policy.json /home/ec2-user/environment/c9builder-trust-policy.json | sudo -u ec2-user tee /home/ec2-user/environment/builder-c9-trust-policy.json > /dev/null'
 
+            - /usr/local/bin/aws iam update-assume-role-policy --role-name ${builderName} --policy-document file:///home/ec2-user/environment/builder-c9-trust-policy.json
+
+            - sudo -u ec2-user curl --silent --location -o /home/ec2-user/environment/c9instance-trust-policy.json "https://raw.githubusercontent.com/jagpk/one-click-demos/main/static/code/cfn/c9instance-trust-policy.json"
+            - sudo -u ec2-user sed -i.bak -e "s|--c9BuilderRoleArn--|${builderArn}|" /home/ec2-user/environment/c9instance-trust-policy.json
            
-            - jq -s 'def deepmerge(a;b):
-                reduce b[] as $item (a;
-                  reduce ($item | keys_unsorted[]) as $key (.;
-                    $item[$key] as $val | ($val | type) as $type | .[$key] = if ($type == "object") then
-                      deepmerge({}; [if .[$key] == null then {} else .[$key] end, $val])
-                    elif ($type == "array") then
-                      (.[$key] + $val | unique)
-                    else
-                      $val
-                    end)
-                  );
-                deepmerge({}; .)' /home/ec2-user/environment/builder-trust-policy.json /home/ec2-user/environment/c9builder-trust-policy.json> /home/ec2-user/environment/builder-c9-trust-policy.json
-
-            - sudo -u ec2-user /usr/local/bin/aws iam update-assume-role-policy --role-name ${builderName --policy-document file://home/ec2-user/environment/builder-c9-trust-policy.json
-
-            # Assume c9builder role to disable c9 temporary credentials
-            - sudo -H -u ec2-user curl --silent --location -o /home/ec2-user/environment/c9instance-trust-policy.json "https://raw.githubusercontent.com/jagpk/one-click-demos/main/static/code/cfn/c9instance-trust-policy.json"
-            - sudo -u ec2-user sed -i.bak -e "s/--c9BuilderRoleArn--/${builderArn}/" /home/ec2-user/environment/c9instance-trust-policy.json
-
             - export c9InstanceRoleName=$(echo ${c9InstanceRoleArn} | awk -F/ '{print $(NF)}')
-            - sudo -u ec2-user /usr/local/bin/aws iam put-role-policy --role-name ${c9InstanceRoleName} --policy-name assume-builder-role --policy-document file://home/ec2-user/environment/c9instance-trust-policy.json
+            - /usr/local/bin/aws iam put-role-policy --role-name ${c9InstanceRoleName} --policy-name assume-builder-role --policy-document file:///home/ec2-user/environment/c9instance-trust-policy.json
+            
+            - echo '=== Put to Sleep for 300 seconds to apply new policies ==='
+            - sleep 300
 
-            - sudo -u ec2-user /usr/local/bin/aws sts assume-role --role-arn ${builderArn} --role-session-name ${Session_Name} -> assume-role-output.txt
-            - export AWS_ACCESS_KEY_ID="$(cat /tmp/irp-cred.txt | jq -r ".Credentials.AccessKeyId")"
-            - export AWS_SECRET_ACCESS_KEY="$(cat /tmp/irp-cred.txt | jq -r ".Credentials.SecretAccessKey")"
-            - export AWS_SESSION_TOKEN="$(cat /tmp/irp-cred.txt | jq -r ".Credentials.SessionToken")"
-            - sudo -u ec2-user rm -rf /home/ec2-user/environment/irp-cred.txt
-            - sudo -u ec2-user /usr/local/bin/aws sts get-caller-identity
-            - sudo -u ec2-user /usr/local/bin/aws cloud9 update-environment --environment-id ${c9EnvID} --managed-credentials-action DISABLE
-            - sudo -u ec2-user rm -rf /home/ec2-user/.aws/credentials
-            - sudo -u ec2-user /usr/local/bin/aws sts get-caller-identity
-            - rm -rf ~/.aws/credentials
-            - sudo -u ec2-user /usr/local/bin/aws sts get-caller-identity
+            - /usr/local/bin/aws sts assume-role --role-arn ${builderArn} --role-session-name ${Session_Name} > /home/ec2-user/environment/assume-role-output.txt
+            - export AWS_ACCESS_KEY_ID="$(cat /home/ec2-user/environment/assume-role-output.txt | jq -r ".Credentials.AccessKeyId")"
+            - export AWS_SECRET_ACCESS_KEY="$(cat /home/ec2-user/environment/assume-role-output.txt | jq -r ".Credentials.SecretAccessKey")"
+            - export AWS_SESSION_TOKEN="$(cat /home/ec2-user/environment/assume-role-output.txt | jq -r ".Credentials.SessionToken")"
+            - sudo -u ec2-user rm -rf /home/ec2-user/environment/assume-role-output.txt
+            - /usr/local/bin/aws iam update-assume-role-policy --role-name ${builderName} --policy-document file:///home/ec2-user/environment/builder-trust-policy.json
+            
+            - /usr/local/bin/aws sts get-caller-identity
+            - /usr/local/bin/aws cloud9 update-environment --environment-id ${c9EnvID} --managed-credentials-action DISABLE
+            - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+            - /usr/local/bin/aws sts get-caller-identity
+
+            - echo '=== Cleanup Assumed Access ==='
+            - /usr/local/bin/aws iam update-assume-role-policy --role-name ${builderName} --policy-document file:///home/ec2-user/environment/builder-trust-policy.json
 
             - echo '=== Generate SSH key and import to aws ==='          
-            - sudo -H -u ec2-user ssh-keygen -f /home/ec2-user/.ssh/id_rsa1 -P ''
-            - sudo -H -u ec2-user /usr/local/bin/aws ec2 import-key-pair --key-name ${Cluster_Name} --public-key-material file:///home/ec2-user/.ssh/id_rsa1.pub
+            - ssh-keygen -f /home/ec2-user/.ssh/id_rsa1 -P ''
+            - /usr/local/bin/aws ec2 import-key-pair --key-name ${Cluster_Name} --public-key-material file:///home/ec2-user/.ssh/id_rsa1.pub
 
             - echo '=== Install EKSCTL ==='
             - curl --silent --location "https://github.com/weaveworks/eksctl/releases/download/${EKSCTL_VERSION}/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /usr/local/bin
-            - sudo -H -u ec2-user /usr/local/bin/eksctl version
+            - /usr/local/bin/eksctl version
 
             - echo '=== Substitute Variables in eks-demo.yaml ==='
-            - sudo -H -u ec2-user curl --silent --location -o /home/ec2-user/environment/eks-demo.yaml "https://raw.githubusercontent.com/jagpk/one-click-demos/main/static/code/cfn/eks-cluster.yaml"
+            - sudo -u ec2-user curl --silent --location -o /home/ec2-user/environment/eks-demo.yaml "https://raw.githubusercontent.com/jagpk/one-click-demos/main/static/code/cfn/eks-cluster.yaml"
             - !Sub sed -i.bak -e 's/--AWS_REGION--/${AWS::Region}/' /home/ec2-user/environment/eks-demo.yaml
             - !Sub sed -i.bak -e 's/--AZA--/${AWS::Region}a/' /home/ec2-user/environment/eks-demo.yaml
             - !Sub sed -i.bak -e 's/--AZB--/${AWS::Region}b/' /home/ec2-user/environment/eks-demo.yaml
@@ -410,13 +426,11 @@ Resources:
             - !Sub sed -i.bak -e 's/--NG-C-VAL--/${EKSNGCLabelValue}/g' /home/ec2-user/environment/eks-demo.yaml
 
             - echo '=== Create EKS Cluster ==='
-            - sudo -H -u ec2-user /usr/local/bin/eksctl create cluster -f /home/ec2-user/environment/eks-demo.yaml
-            - sudo -H -u ec2-user /usr/local/bin/kubectl get nodes
+            - /usr/local/bin/eksctl create cluster -f /home/ec2-user/environment/eks-demo.yaml
+            - sudo -u ec2-user /usr/local/bin/kubectl get nodes
 
             - echo '=== Create IAM identity mapping for C9 Owner ==='
-            - sudo -u ec2-user /usr/local/bin/aws sts assume-role --role-arn ${rolearn} --role-session-name c9-owner
-            - echo "sudo -u ec2-user /usr/local/bin/eksctl create iamidentitymapping --cluster ${Cluster_Name} --arn ${rolearn} --group system:masters --username admin"
-            - sudo -u ec2-user /usr/local/bin/eksctl create iamidentitymapping --cluster ${Cluster_Name} --arn ${rolearn} --group system:masters --username admin
+            - /usr/local/bin/eksctl create iamidentitymapping --cluster ${Cluster_Name} --arn ${builderArn} --group system:masters --username admin
             - sudo -u ec2-user /usr/local/bin/kubectl describe configmap -n kube-system aws-auth
             
             - echo '=== Install Helm ==='
@@ -426,12 +440,7 @@ Resources:
             - sudo -u ec2-user /usr/local/bin/helm search repo stable
             - sudo -u ec2-user /usr/local/bin/helm completion bash >> ~/.bash_completion
             - . ~/.bash_completion
-            - source <(sudo -u ec2-user /usr/local/bin/helm completion bash)
-            - sudo -u ec2-user /usr/local/bin/kubectl create namespace metrics
-            - sudo -u ec2-user /usr/local/bin/helm install metrics-server \
-                stable/metrics-server \
-                --version 2.11.4 \
-                --namespace metrics
+            - source <(helm completion bash)
 
             - echo '=== Deploy the Metric Server ==='
             - sudo -u ec2-user /usr/local/bin/kubectl create namespace metrics
@@ -448,6 +457,17 @@ Resources:
 
             - echo '=== SETTING UP JENKINS SERVER ==='
             - sudo -u ec2-user /usr/local/bin/helm repo add jenkins https://charts.jenkins.io
+            - sudo -u ec2-user curl -o /home/ec2-user/environment/jenkins/jenkins-values.yaml https://raw.githubusercontent.com/jagpk/one-click-demos/main/static/code/cfn/jenkins-values.yaml
+            - sudo -u ec2-user sed -i "s/--JENKINS-CNTRL-TAG--/${Jenkins_Cntlr_Tag}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - sudo -u ec2-user sed -i "s/--NG-A-KEY--/${EKSNGALabelKey}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - sudo -u ec2-user sed -i "s/--NG-A-VAL--/${EKSNGALabelValue}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - sudo -u ec2-user sed -i "s/--JENKINS-AGNT-TAG--/${Jenkins_Agnts_Tag}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - sudo -u ec2-user sed -i "s/--NG-B-KEY--/${EKSNGBLabelKey}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - sudo -u ec2-user sed -i "s/--NG-B-VAL--/${EKSNGBLabelValue}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - sudo -u ec2-user sed -i "s/--NG-C-KEY--/${EKSNGCLabelKey}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - sudo -u ec2-user sed -i "s/--NG-C-VAL--/${EKSNGCLabelValue}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - sudo -u ec2-user /usr/local/bin/helm install cicd jenkins/jenkins -f /home/ec2-user/environment/jenkins/jenkins-values.yaml
+ 
 
   C9BootstrapAssociation:
     Type: AWS::SSM::Association
@@ -461,9 +481,10 @@ Resources:
           OutputS3BucketName: !Ref C9OutputBucket
           OutputS3KeyPrefix: bootstrapoutput
       Targets:
-        - Key: tag:SSMBootstrap
+        - Key: tag:c9Environment
           Values:
-          - Active
+          - Ref: AWS::StackName
+
 
 ################## Cloud9 Environment #####################
   C9InstanceProfile:
@@ -484,10 +505,7 @@ Resources:
         Ref: AWS::StackName
       Tags:
         -
-          Key: SSMBootstrap
-          Value: Active
-        -
-          Key: Environment
+          Key: c9Environment
           Value:
             Ref: AWS::StackName
 

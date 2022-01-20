@@ -2,7 +2,7 @@
 controller:
   componentName: "jenkins-controller"
   image: "jenkins/jenkins"
-  tag: "--CLUSTER-NAME--"
+  tag: "--JENKINS-CNTRL-TAG--"
   #tag: "2.303.2-lts-jdk11"
   resources:
     requests:
@@ -24,7 +24,8 @@ serviceAccountAgent:
 agent:
   enabled: true
   image: "jenkins/inbound-agent"
-  tag: "4.11-1"
+  tag: "--JENKINS-AGNT-TAG--"
+  #tag: "4.11-1"
   workingDir: "/home/jenkins/agent"
   componentName: "jenkins-agent"
   resources:
@@ -43,7 +44,7 @@ agent:
 
 # Here you can add additional agents
 # They inherit all values from `agent` so you only need to specify values which differ
-additionalAgents: {}
+additionalAgents:
   nodeSelector:
     --NG-C-KEY--: --NG-C-VAL--
   # Pod name
