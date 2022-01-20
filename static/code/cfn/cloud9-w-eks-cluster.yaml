@@ -305,8 +305,6 @@ Resources:
             - !Sub 'export KUBECTL_VERSION=${C9KubectlVersion}'
             - !Sub 'export EKSCTL_VERSION=${C9EKSctlVersion}'
             - !Sub 'export Session_Name=${C9ConsoleSession}'
-            - !Sub 'export Jenkins_Cntlr_Tag=${C9JenkinsControllerTag}'
-            - !Sub 'export Jenkins_Agnts_Tag=${C9JenkinsAgentsTag}'
 
             - echo '=== INSTALL kubectl ==='          
             - curl --silent --location -o /usr/local/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl
@@ -427,47 +425,46 @@ Resources:
 
             - echo '=== Create EKS Cluster ==='
             - /usr/local/bin/eksctl create cluster -f /home/ec2-user/environment/eks-demo.yaml
-            - sudo -u ec2-user /usr/local/bin/kubectl get nodes
+            - /usr/local/bin/kubectl get nodes
 
             - echo '=== Create IAM identity mapping for C9 Owner ==='
             - /usr/local/bin/eksctl create iamidentitymapping --cluster ${Cluster_Name} --arn ${builderArn} --group system:masters --username admin
-            - sudo -u ec2-user /usr/local/bin/kubectl describe configmap -n kube-system aws-auth
+            - /usr/local/bin/kubectl describe configmap -n kube-system aws-auth
             
             - echo '=== Install Helm ==='
             - curl -sSL https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
-            - sudo -u ec2-user /usr/local/bin/helm repo add stable https://charts.helm.sh/stable/
-            - sudo -u ec2-user /usr/local/bin/helm repo update
-            - sudo -u ec2-user /usr/local/bin/helm search repo stable
-            - sudo -u ec2-user /usr/local/bin/helm completion bash >> ~/.bash_completion
+            - /usr/local/bin/helm repo add stable https://charts.helm.sh/stable/
+            - /usr/local/bin/helm repo update
+            - /usr/local/bin/helm search repo stable
+            - /usr/local/bin/helm completion bash >> ~/.bash_completion
             - . ~/.bash_completion
             - source <(helm completion bash)
 
             - echo '=== Deploy the Metric Server ==='
-            - sudo -u ec2-user /usr/local/bin/kubectl create namespace metrics
-            - sudo -u ec2-user /usr/local/bin/helm install metrics-server stable/metrics-server --version 2.11.4 --namespace metrics
+            - /usr/local/bin/kubectl create namespace metrics
+            - /usr/local/bin/helm install metrics-server stable/metrics-server --version 2.11.4 --namespace metrics
 
             - echo '=== Install KUBE-OPS-VIEW ==='
-            - sudo -u ec2-user /usr/local/bin/helm install kube-ops-view stable/kube-ops-view --set service.type=LoadBalancer --set nodeSelector.intent=control-apps --version 1.2.4 --set rbac.create=True
+            - /usr/local/bin/helm install kube-ops-view stable/kube-ops-view --set service.type=LoadBalancer --set nodeSelector.intent=control-apps --version 1.2.4 --set rbac.create=True
              
             - echo '=== Install Cluster Autoscaler ==='
             - sudo -u ec2-user mkdir -p /home/ec2-user/environment/cluster-autoscaler
             - sudo -u ec2-user curl -o /home/ec2-user/environment/cluster-autoscaler/cluster_autoscaler.yml https://raw.githubusercontent.com/awslabs/ec2-spot-workshops/master/content/using_ec2_spot_instances_with_eks/060_scaling/deploy_ca.files/cluster_autoscaler.yml
-            - sudo -u ec2-user sed -i "s/--AWS_REGION--/${AWS_REGION}/g" /home/ec2-user/environment/cluster-autoscaler/cluster_autoscaler.yml
-            - sudo -u ec2-user /usr/local/bin/kubectl apply -f /home/ec2-user/environment/cluster-autoscaler/cluster_autoscaler.yml
+            - !Sub sed -i.bak -e 's/--AWS_REGION--/${AWS::Region}/g' /home/ec2-user/environment/cluster-autoscaler/cluster_autoscaler.yml
+            - /usr/local/bin/kubectl apply -f /home/ec2-user/environment/cluster-autoscaler/cluster_autoscaler.yml
 
             - echo '=== SETTING UP JENKINS SERVER ==='
-            - sudo -u ec2-user /usr/local/bin/helm repo add jenkins https://charts.jenkins.io
+            - /usr/local/bin/helm repo add jenkins https://charts.jenkins.io
             - sudo -u ec2-user curl -o /home/ec2-user/environment/jenkins/jenkins-values.yaml https://raw.githubusercontent.com/jagpk/one-click-demos/main/static/code/cfn/jenkins-values.yaml
-            - sudo -u ec2-user sed -i "s/--JENKINS-CNTRL-TAG--/${Jenkins_Cntlr_Tag}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
-            - sudo -u ec2-user sed -i "s/--NG-A-KEY--/${EKSNGALabelKey}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
-            - sudo -u ec2-user sed -i "s/--NG-A-VAL--/${EKSNGALabelValue}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
-            - sudo -u ec2-user sed -i "s/--JENKINS-AGNT-TAG--/${Jenkins_Agnts_Tag}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
-            - sudo -u ec2-user sed -i "s/--NG-B-KEY--/${EKSNGBLabelKey}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
-            - sudo -u ec2-user sed -i "s/--NG-B-VAL--/${EKSNGBLabelValue}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
-            - sudo -u ec2-user sed -i "s/--NG-C-KEY--/${EKSNGCLabelKey}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
-            - sudo -u ec2-user sed -i "s/--NG-C-VAL--/${EKSNGCLabelValue}/g" /home/ec2-user/environment/jenkins/jenkins-values.yaml
-            - sudo -u ec2-user /usr/local/bin/helm install cicd jenkins/jenkins -f /home/ec2-user/environment/jenkins/jenkins-values.yaml
- 
+            - !Sub sed -i.bak -e 's/--JENKINS-CNTRL-TAG--/${C9JenkinsControllerTag}/g' /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - !Sub sed -i.bak -e 's/--NG-A-KEY--/${EKSNGALabelKey}/g' /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - !Sub sed -i.bak -e 's/--NG-A-VAL--/${EKSNGALabelValue}/g' /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - !Sub sed -i.bak -e 's/--JENKINS-AGNT-TAG--/${C9JenkinsAgentsTag}/g' /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - !Sub sed -i.bak -e 's/--NG-B-KEY--/${EKSNGBLabelKey}/g' /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - !Sub sed -i.bak -e 's/--NG-B-VAL--/${EKSNGBLabelValue}/g' /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - !Sub sed -i.bak -e 's/--NG-C-KEY--/${EKSNGCLabelKey}/g' /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - !Sub sed -i.bak -e 's/--NG-C-VAL--/${EKSNGCLabelValue}/g' /home/ec2-user/environment/jenkins/jenkins-values.yaml
+            - /usr/local/bin/helm install cicd jenkins/jenkins -f /home/ec2-user/environment/jenkins/jenkins-values.yaml
 
   C9BootstrapAssociation:
     Type: AWS::SSM::Association
