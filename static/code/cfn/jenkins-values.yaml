@@ -20,32 +20,3 @@ controller:
 
 serviceAccountAgent:
   create: false
-
-agent:
-  enabled: true
-  image: "jenkins/inbound-agent"
-  tag: "--JENKINS-AGNT-TAG--"
-  #tag: "4.11-1"
-  workingDir: "/home/jenkins/agent"
-  componentName: "jenkins-agent"
-  resources:
-    requests:
-      cpu: "512m"
-      memory: "512Mi"
-    limits:
-      cpu: "1024m"
-      memory: "1Gi"
-
-  nodeSelector:
-    --NG-B-KEY--: --NG-B-VAL--
-  connectTimeout: 300
-  # Pod name
-  podName: "jenkins-agent-x86"
-
-# Here you can add additional agents
-# They inherit all values from `agent` so you only need to specify values which differ
-additionalAgents:
-  nodeSelector:
-    --NG-C-KEY--: --NG-C-VAL--
-  # Pod name
-  podName: "jenkins-agent-arm"
